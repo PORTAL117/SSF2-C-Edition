@@ -7,6 +7,14 @@ size = Vector2(1280, 40)
 
 [node name="Node2D" type="Node2D" unique_id=1876896714]
 
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1580204368]
+custom_minimum_size = Vector2(1280, 720)
+offset_left = -640.0
+offset_top = -360.0
+offset_right = 640.0
+offset_bottom = 360.0
+color = Color(0.1882353, 1, 0.02745098, 1)
+
 [node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=2020069586]
 constant_linear_velocity = Vector2(0, 650)
 
@@ -16,11 +24,3 @@ shape = SubResource("RectangleShape2D_uu6xs")
 [node name="CharacterBody2D" parent="." unique_id=2126740224 instance=ExtResource("1_glv2v")]
 position = Vector2(0, -200)
 up_direction = Vector2(0.9999988, 0.0015624982)
-
-[node name="ColorRect" type="ColorRect" parent="." unique_id=1580204368]
-custom_minimum_size = Vector2(1280, 720)
-offset_left = -640.0
-offset_top = -360.0
-offset_right = 640.0
-offset_bottom = 360.0
-color = Color(0.1882353, 1, 0.02745098, 1)
