@@ -42,32 +42,56 @@ public partial class GameManager : Node
 	{
 		var playersNode = GetNode("Players");
 
-		_player1 = GetNodeOrNull<Character>("Players/Player1");
-		_player2 = GetNodeOrNull<Character>("Players/Player2");
-
+		// Find existing character nodes or create them
+		_player1 = GetNodeOrNull<Character>("Players/KrystalP1");
 		if (_player1 == null)
 		{
-			_player1 = new Fox();
-			_player1.CharacterIndex = 0;
-			_player1.GlobalPosition = new Vector2(300, 400);
-			playersNode.AddChild(_player1);
-			playersNode.MoveChild(_player1, 0);
+			_player1 = GetNodeOrNull<Character>("Players/Player1");
+		}
+		if (_player1 == null)
+		{
+			// Try to find first child that is a Character
+			foreach (Node child in playersNode.GetChildren())
+			{
+				if (child is Character charNode)
+				{
+					_player1 = charNode;
+					break;
+				}
+			}
 		}
 
+		_player2 = GetNodeOrNull<Character>("Players/FoxP2");
 		if (_player2 == null)
 		{
-			_player2 = new Pikachu();
+			_player2 = GetNodeOrNull<Character>("Players/Player2");
+		}
+		if (_player2 == null)
+		{
+			// Create player 2 if not found
+			_player2 = new Fox();
 			_player2.CharacterIndex = 1;
 			_player2.GlobalPosition = new Vector2(1000, 400);
 			playersNode.AddChild(_player2);
-			playersNode.MoveChild(_player2, 1);
 		}
 
-		_combatSystem.RegisterCharacter(_player1);
-		_combatSystem.RegisterCharacter(_player2);
+		// Ensure indices are set
+		if (_player1 != null)
+		{
+			_player1.CharacterIndex = 0;
+			_combatSystem.RegisterCharacter(_player1);
+		}
+
+		if (_player2 != null)
+		{
+			_player2.CharacterIndex = 1;
+			_combatSystem.RegisterCharacter(_player2);
+		}
 
 		_matchState = new MatchState(_player1, _player2);
 		_matchActive = true;
+
+		GD.Print($"Match initialized: {_player1?.CharacterName} vs {_player2?.CharacterName}");
 	}
 
 	public override void _Process(double delta)

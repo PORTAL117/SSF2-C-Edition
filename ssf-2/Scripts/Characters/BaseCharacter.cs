@@ -35,6 +35,7 @@ public partial class Character : CharacterBody2D
 
 	// Animation
 	protected AnimatedSprite2D _sprite;
+	protected AnimationController _animationController;
 
 	// Input
 	protected InputFrame _lastInput;
@@ -45,6 +46,20 @@ public partial class Character : CharacterBody2D
 		_stats = GetDefaultStats();
 		_shieldHealth = _stats.ShieldDurability;
 		_lastInput = new InputFrame();
+
+		// Initialize animation controller if not already present
+		_animationController = GetNodeOrNull<AnimationController>("AnimationController");
+		if (_animationController == null)
+		{
+			_animationController = new AnimationController();
+			AddChild(_animationController);
+		}
+
+		// Setup animations based on character name
+		if (!string.IsNullOrEmpty(CharacterName))
+		{
+			_animationController.InitializeCharacter(CharacterName);
+		}
 	}
 
 	public virtual void SimulateFrame(InputFrame input, Character opponent, int frameNumber)
@@ -55,6 +70,7 @@ public partial class Character : CharacterBody2D
 
 		UpdateCooldowns();
 		UpdateHitboxes();
+		UpdateAnimation();
 
 		// Priority: Stunned > Shield > Actions > Movement
 		if (_hitStunFrames > 0)
@@ -358,6 +374,14 @@ public partial class Character : CharacterBody2D
 			MaxAirJumps = 1,
 			ShieldDurability = 60f
 		};
+	}
+
+	protected virtual void UpdateAnimation()
+	{
+		if (_animationController != null)
+		{
+			_animationController.PlayAnimation(_currentState, _previousState != _currentState);
+		}
 	}
 
 	// Getters
