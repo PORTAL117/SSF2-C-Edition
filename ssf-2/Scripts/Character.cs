@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 public partial class Character : CharacterBody2D
 {
@@ -8,69 +9,162 @@ public partial class Character : CharacterBody2D
 
     private AnimationPlayer _animationPlayer;
     private Sprite2D _sprite;
+    private string _currentAnimation = "";
+    private bool _canDoubleJump = false;
+
+    private Dictionary<string, (string prefix, int frames, float fps, bool loop)> _animations = new()
+    {
+        { "idle", ("idle", 16, 30f, true) },
+        { "run",  ("r",    8,  30f, true) },
+        { "jump", ("j",    7,  12f, false) },
+        { "fall", ("f",    4,  12f, false) },
+    };
 
     public override void _Ready()
     {
         _animationPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
         _sprite = GetNode<Sprite2D>("Sprite2D");
 
-        CargarAnimacionIdle();
+        _animationPlayer.AddAnimationLibrary("mario", new AnimationLibrary());
+
+        foreach (var anim in _animations)
+            LoadAnimation(anim.Key, anim.Value.prefix, anim.Value.frames, anim.Value.fps, anim.Value.loop);
+
+        PlayAnimation("idle");
     }
 
-    private void CargarAnimacionIdle()
+    private void LoadAnimation(string name, string prefix, int frames, float fps, bool loop)
     {
-        var library = new AnimationLibrary();
+        string folder = name.Substring(0, 1).ToUpper() + name.Substring(1);
+        string path = $"res://Assets/Sprites/Mario/{folder}/";
+
         var animation = new Animation();
-        animation.Length = 16f / 30f; // 16 frames a 30fps
-        animation.LoopMode = Animation.LoopModeEnum.Linear;
+        animation.Length = frames / fps;
+        animation.LoopMode = loop
+            ? Animation.LoopModeEnum.Linear
+            : Animation.LoopModeEnum.None;
 
         int trackIndex = animation.AddTrack(Animation.TrackType.Value);
         animation.TrackSetPath(trackIndex, "Sprite2D:texture");
 
-        for (int i = 0; i <= 15; i++)
+        int loaded = 0;
+        for (int i = 0; i < frames; i++)
         {
-            string path = $"res://Assets/Sprites/Mario/Idle/";
-            // Buscar el archivo que contenga "idle{i}"
             var dir = DirAccess.Open(path);
-            if (dir != null)
+            if (dir == null)
             {
-                dir.ListDirBegin();
-                string fileName = dir.GetNext();
-                while (fileName != "")
+                GD.PrintErr($"Folder not found: {path}");
+                return;
+            }
+
+            dir.ListDirBegin();
+            string fileName = dir.GetNext();
+            while (fileName != "")
+            {
+                if (fileName.Contains($"{prefix}{i}") && fileName.EndsWith(".png"))
                 {
-                    if (fileName.Contains($"idle{i}") && fileName.EndsWith(".png"))
-                    {
-                        var texture = GD.Load<Texture2D>(path + fileName);
-                        float time = i / 30f;
-                        animation.TrackInsertKey(trackIndex, time, texture);
-                        break;
-                    }
-                    fileName = dir.GetNext();
+                    var texture = GD.Load<Texture2D>(path + fileName);
+                    animation.TrackInsertKey(trackIndex, i / fps, texture);
+                    loaded++;
+                    break;
                 }
+                fileName = dir.GetNext();
             }
         }
 
-        library.AddAnimation("idle", animation);
-        _animationPlayer.AddAnimationLibrary("mario", library);
-        _animationPlayer.Play("mario/idle");
+        GD.Print($"Animation '{name}': {loaded}/{frames} frames loaded");
+
+        var library = _animationPlayer.GetAnimationLibrary("mario");
+        library.AddAnimation(name, animation);
+    }
+
+    private void PlayAnimation(string name)
+    {
+        string fullName = $"mario/{name}";
+        if (_currentAnimation != fullName)
+        {
+            _currentAnimation = fullName;
+            _animationPlayer.Play(fullName);
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!_animationPlayer.IsPlaying())
+        {
+            if (_currentAnimation == "mario/jump")
+                PlayAnimation("fall");
+            else
+                _currentAnimation = "";
+        }
     }
 
     public override void _PhysicsProcess(double delta)
     {
         Vector2 velocity = Velocity;
 
-        if (!IsOnFloor())
+        // Detect floor by collision normal
+        bool onGround = false;
+        for (int i = 0; i < GetSlideCollisionCount(); i++)
+        {
+            var collision = GetSlideCollision(i);
+            if (collision.GetNormal().Y < -0.7f)
+            {
+                onGround = true;
+                break;
+            }
+        }
+
+        // Gravity
+        if (!onGround)
             velocity.Y += Gravity * (float)delta;
 
+        // Horizontal movement
         float direction = 0f;
         if (Input.IsActionPressed("ui_right")) direction += 1f;
         if (Input.IsActionPressed("ui_left")) direction -= 1f;
         velocity.X = direction * Speed;
 
-        if (Input.IsActionJustPressed("ui_accept") && IsOnFloor())
-            velocity.Y = JumpForce;
+        // Flip sprite
+        if (direction > 0) _sprite.FlipH = false;
+        if (direction < 0) _sprite.FlipH = true;
+
+        // Jump and double jump
+        if (Input.IsActionJustPressed("jump"))
+        {
+            if (onGround)
+            {
+                velocity.Y = JumpForce;
+                _canDoubleJump = true;
+            }
+            else if (_canDoubleJump)
+            {
+                velocity.Y = JumpForce;
+                _canDoubleJump = false;
+            }
+        }
+
+        // Reset double jump on landing
+        if (onGround)
+            _canDoubleJump = false;
 
         Velocity = velocity;
         MoveAndSlide();
+
+        // Animations
+        if (!onGround)
+        {
+            if (Velocity.Y < 0)
+                PlayAnimation("jump");
+            else
+                PlayAnimation("fall");
+        }
+        else
+        {
+            if (Mathf.Abs(Velocity.X) > 10f)
+                PlayAnimation("run");
+            else
+                PlayAnimation("idle");
+        }
     }
 }
