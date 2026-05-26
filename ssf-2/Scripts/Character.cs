@@ -11,13 +11,17 @@ public partial class Character : CharacterBody2D
     private Sprite2D _sprite;
     private string _currentAnimation = "";
     private bool _canDoubleJump = false;
+    private bool _wasOnGround = false;
+
+    private bool _leftGroundWithoutJumping = false;
 
     private Dictionary<string, (string prefix, int frames, float fps, bool loop)> _animations = new()
     {
-        { "idle", ("idle", 16, 30f, true) },
-        { "run",  ("r",    8,  30f, true) },
-        { "jump", ("j",    7,  12f, false) },
-        { "fall", ("f",    4,  12f, false) },
+        { "idle",       ("idle", 16, 30f, true) },
+        { "run",        ("r",    8,  30f, true) },
+        { "jump",       ("j",    7,  12f, false) },
+        { "fall",       ("f",    4,  12f, false) },
+        { "doublejump", ("jj",   12, 12f, false) },
     };
 
     public override void _Ready()
@@ -92,7 +96,7 @@ public partial class Character : CharacterBody2D
     {
         if (!_animationPlayer.IsPlaying())
         {
-            if (_currentAnimation == "mario/jump")
+            if (_currentAnimation == "mario/jump" || _currentAnimation == "mario/doublejump")
                 PlayAnimation("fall");
             else
                 _currentAnimation = "";
@@ -105,6 +109,10 @@ public partial class Character : CharacterBody2D
 
         // Detect floor by collision normal
         bool onGround = false;
+        // If just left ground without jumping, grant aerial jump
+        if (_wasOnGround && !onGround && !_canDoubleJump)
+            _canDoubleJump = true;
+
         for (int i = 0; i < GetSlideCollisionCount(); i++)
         {
             var collision = GetSlideCollision(i);
@@ -129,10 +137,11 @@ public partial class Character : CharacterBody2D
         if (direction > 0) _sprite.FlipH = false;
         if (direction < 0) _sprite.FlipH = true;
 
-        // Jump and double jump
+        // Jump logic - Smash style
+        // Use _wasOnGround (state from previous frame) for jump detection
         if (Input.IsActionJustPressed("jump"))
         {
-            if (onGround)
+            if (_wasOnGround)
             {
                 velocity.Y = JumpForce;
                 _canDoubleJump = true;
@@ -141,23 +150,30 @@ public partial class Character : CharacterBody2D
             {
                 velocity.Y = JumpForce;
                 _canDoubleJump = false;
+                PlayAnimation("doublejump");
             }
         }
 
-        // Reset double jump on landing
-        if (onGround)
+        // Reset on landing
+        if (onGround && !_wasOnGround)
             _canDoubleJump = false;
 
         Velocity = velocity;
         MoveAndSlide();
 
+        // Save ground state AFTER MoveAndSlide for next frame
+        _wasOnGround = onGround;
+
         // Animations
         if (!onGround)
         {
-            if (Velocity.Y < 0)
-                PlayAnimation("jump");
-            else
-                PlayAnimation("fall");
+            if (_currentAnimation != "mario/doublejump")
+            {
+                if (Velocity.Y < 0)
+                    PlayAnimation("jump");
+                else
+                    PlayAnimation("fall");
+            }
         }
         else
         {
